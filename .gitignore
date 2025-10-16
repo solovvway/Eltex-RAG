@@ -1,6 +1,6 @@
 # Progect folders
 eltex_docs/
-
+norm_docs/
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
