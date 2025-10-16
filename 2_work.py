@@ -5,7 +5,13 @@ import trafilatura
 from sentence_transformers import SentenceTransformer
 from qdrant_client import QdrantClient
 from qdrant_client.models import Distance, VectorParams, PointStruct, TextIndexParams, TokenizerType
+from openai import OpenAI
 
+API_KEY = os.getenv("OPENROUTER_API_KEY")
+client = OpenAI(
+    base_url="https://openrouter.ai/api/v1",
+    api_key=API_KEY,
+)
 # URLs
 doccli = 'https://docs.eltex-co.ru/ede/esr-series-user-manual-firmware-version-1-18-1-380863447.html'
 docguide = 'https://docs.eltex-co.ru/ede/esr-series-cli-command-reference-guide-firmware-version-1-13-0-177668705.html'
@@ -15,6 +21,13 @@ baseurl = 'https://docs.eltex-co.ru'
 QDRANT_HOST = "localhost"
 QDRANT_PORT = 6333
 COLLECTION_NAME = "eltex_docs"
+models = [
+    "google/gemma-3n-e2b-it:free",
+    "deepseek/deepseek-chat-v3.1:free",
+    "openai/gpt-oss-20b:free",
+    "qwen/qwen3-coder:free",
+    "deepseek/deepseek-r1-distill-llama-70b:free"
+]
 
 input_dir = "eltex_docs"
 os.makedirs(input_dir, exist_ok=True)
@@ -154,7 +167,22 @@ def query_vector(question, top_k=5):
     q_emb = model.encode([question])[0].tolist()
     hits = client.query_points(collection_name=COLLECTION_NAME, query=q_emb, limit=top_k).points
     return [hit.payload["text"] for hit in hits]
-# === Основной поток ===
+
+def chat_with_model(model_name: str, prompt: str, site_url: str = "", site_name: str = ""):
+    headers = {}
+    if site_url:
+        headers["HTTP-Referer"] = site_url
+    if site_name:
+        headers["X-Title"] = site_name
+
+    completion = client.chat.completions.create(
+        extra_headers=headers,
+        model=model_name,
+        messages=[{"role": "user", "content": prompt}]
+    )
+    response = completion.choices[0].message.content
+    print(response)
+    return response
 
 if __name__ == "__main__":
     # 1. Скачиваем, если нужно
@@ -174,8 +202,6 @@ if __name__ == "__main__":
 
     # 5. Пример запроса
     question = 'create l3vpn with on vrfs TEST1 with rd 1234:123 on router 1.1.1.1 and router 2.2.2.2. Give me 2 configs to this routers'
-
-
 
     bm25_res = query_bm25(question, 3)
     vector_res = query_vector(question, 3)
@@ -206,3 +232,5 @@ Context:
         f.write(prompt)
 
     print("✅ Промпт сохранён в prompt.txt")
+    output = chat_with_model(models[0],prompt)
+    print(output)

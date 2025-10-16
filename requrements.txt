@@ -7,3 +7,4 @@ qdrant-client>=1.0.0
 numpy>=1.21.0
 beautifulsoup4
 trafilatura
+openai

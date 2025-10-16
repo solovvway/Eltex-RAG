@@ -327,8 +327,8 @@ output_dir = "norm_docs"
 os.makedirs(input_dir, exist_ok=True)
 os.makedirs(output_dir, exist_ok=True)
 
-# client = QdrantClient(host=QDRANT_HOST, port=QDRANT_PORT)
-# client.delete_collection("eltex_docs")
+client = QdrantClient(host=QDRANT_HOST, port=QDRANT_PORT)
+client.delete_collection("eltex_docs")
 
 # Раскомментируй при первом запуске:
 # links = getlinks(doccli)
@@ -336,18 +336,18 @@ os.makedirs(output_dir, exist_ok=True)
 # links = getlinks(docguide)
 # getdocs(links)
 
-# html_files = os.listdir("eltex_docs")
-# chunks = create_chunks_from_html_files(html_files)
-# print(chunks[1])
-# files = getfilenames()
-# normalize(files)
+html_files = os.listdir("eltex_docs")
+chunks = create_chunks_from_html_files(html_files)
+print(chunks[1])
+files = getfilenames()
+normalize(files)
 
-# files = getfilenames()
-# chunks = create_chunks(files)
-# print("Пример чанка:", chunks[1] if chunks else "Нет чанков")
-# chunks = get_chunks_from_files(files)
-# print(chunks[228])
-# model, client = build_vectorstore(chunks)
+files = getfilenames()
+chunks = create_chunks(files)
+print("Пример чанка:", chunks[1] if chunks else "Нет чанков")
+chunks = get_chunks_from_files(files)
+print(chunks[228])
+model, client = build_vectorstore(chunks)
 
 
 model = SentenceTransformer("sentence-transformers/all-MiniLM-L6-v2")
