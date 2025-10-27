@@ -6,9 +6,11 @@ from sentence_transformers import SentenceTransformer
 from qdrant_client import QdrantClient
 from qdrant_client.models import Distance, VectorParams, PointStruct, TextIndexParams, TokenizerType
 from openai import OpenAI
+from dotenv import load_dotenv
+load_dotenv()  # <-- важно: загружает .env в os.environ
 
 API_KEY = os.getenv("OPENROUTER_API_KEY")
-client = OpenAI(
+llm_client = OpenAI(
     base_url="https://openrouter.ai/api/v1",
     api_key=API_KEY,
 )
@@ -164,6 +166,9 @@ def query_bm25(question, top_k=5):
         return []
 
 def query_vector(question, top_k=5):
+    model = SentenceTransformer("sentence-transformers/all-MiniLM-L6-v2")
+    client = QdrantClient(host=QDRANT_HOST, port=QDRANT_PORT)
+
     q_emb = model.encode([question])[0].tolist()
     hits = client.query_points(collection_name=COLLECTION_NAME, query=q_emb, limit=top_k).points
     return [hit.payload["text"] for hit in hits]
@@ -175,7 +180,7 @@ def chat_with_model(model_name: str, prompt: str, site_url: str = "", site_name:
     if site_name:
         headers["X-Title"] = site_name
 
-    completion = client.chat.completions.create(
+    completion = llm_client.chat.completions.create(
         extra_headers=headers,
         model=model_name,
         messages=[{"role": "user", "content": prompt}]
@@ -189,16 +194,16 @@ if __name__ == "__main__":
     # download_docs_if_needed()
 
     # 2. Загружаем и чанкуем
-    chunks = load_all_chunks()
-    if not chunks:
-        raise RuntimeError("❌ Не удалось извлечь ни одного чанка.")
+    # chunks = load_all_chunks()
+    # if not chunks:
+    #     raise RuntimeError("❌ Не удалось извлечь ни одного чанка.")
 
     # 3. Инициализация модели и Qdrant
     model = SentenceTransformer("sentence-transformers/all-MiniLM-L6-v2")
     client = QdrantClient(host=QDRANT_HOST, port=QDRANT_PORT)
 
     # 4. Создаём коллекцию, если её нет
-    ensure_collection_exists(client, model, chunks)
+    # ensure_collection_exists(client, model, chunks)
 
     # 5. Пример запроса
     question = 'create l3vpn with on vrfs TEST1 with rd 1234:123 on router 1.1.1.1 and router 2.2.2.2. Give me 2 configs to this routers'
@@ -232,5 +237,5 @@ Context:
         f.write(prompt)
 
     print("✅ Промпт сохранён в prompt.txt")
-    output = chat_with_model(models[0],prompt)
+    output = chat_with_model(models[2],prompt)
     print(output)
