@@ -9,11 +9,32 @@ from openai import OpenAI
 from dotenv import load_dotenv
 load_dotenv()  # <-- важно: загружает .env в os.environ
 
-API_KEY = os.getenv("OPENROUTER_API_KEY")
-llm_client = OpenAI(
-    base_url="https://openrouter.ai/api/v1",
-    api_key=API_KEY,
-)
+OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
+YANDEX_CLOUD_API_KEY = os.getenv("YANDEX_CLOUD_API_KEY")
+YANDEX_CLOUD_FOLDER = os.getenv("YANDEX_CLOUD_FOLDER")
+
+# Выбор провайдера (можно изменить на "yandex" для использования Yandex Cloud)
+PROVIDER = "openrouter"  # или "yandex"
+
+if PROVIDER == "openrouter":
+    if not OPENROUTER_API_KEY:
+        raise RuntimeError("❌ Укажи OPENROUTER_API_KEY в .env")
+    llm_client = OpenAI(
+        base_url="https://openrouter.ai/api/v1",
+        api_key=OPENROUTER_API_KEY,
+    )
+elif PROVIDER == "yandex":
+    if not YANDEX_CLOUD_API_KEY:
+        raise RuntimeError("❌ Укажи YANDEX_CLOUD_API_KEY в .env")
+    if not YANDEX_CLOUD_FOLDER:
+        raise RuntimeError("❌ Укажи YANDEX_CLOUD_FOLDER в .env для работы с Yandex Cloud")
+    llm_client = OpenAI(
+        api_key=YANDEX_CLOUD_API_KEY,
+        base_url="https://llm.api.cloud.yandex.net/v1",
+        project=YANDEX_CLOUD_FOLDER
+    )
+else:
+    raise RuntimeError("❌ Неизвестный провайдер. Используй 'openrouter' или 'yandex'")
 # URLs
 doccli = 'https://docs.eltex-co.ru/ede/esr-series-user-manual-firmware-version-1-18-1-380863447.html'
 docguide = 'https://docs.eltex-co.ru/ede/esr-series-cli-command-reference-guide-firmware-version-1-13-0-177668705.html'
@@ -23,13 +44,20 @@ baseurl = 'https://docs.eltex-co.ru'
 QDRANT_HOST = "localhost"
 QDRANT_PORT = 6333
 COLLECTION_NAME = "eltex_docs"
-models = [
-    "google/gemma-3n-e2b-it:free",
-    "deepseek/deepseek-chat-v3.1:free",
-    "openai/gpt-oss-20b:free",
-    "qwen/qwen3-coder:free",
-    "deepseek/deepseek-r1-distill-llama-70b:free"
-]
+# Модели в зависимости от провайдера
+if PROVIDER == "openrouter":
+    models = [
+        "google/gemma-3n-e2b-it:free",
+        "deepseek/deepseek-chat-v3.1:free",
+        "openai/gpt-oss-20b:free",
+        "qwen/qwen3-coder:free",
+        "deepseek/deepseek-r1-distill-llama-70b:free"
+    ]
+else:  # yandex
+    models = [
+        f"gpt://{YANDEX_CLOUD_FOLDER}/yandexgpt/latest",
+        f"gpt://{YANDEX_CLOUD_FOLDER}/yandexgpt-lite/latest"
+    ]
 
 input_dir = "eltex_docs"
 os.makedirs(input_dir, exist_ok=True)
@@ -189,15 +217,23 @@ def chat_with_model(model_name: str, prompt: str, site_url: str = "", site_name:
     print(response)
     return response
 def get_key_info():
-    """Получает информацию о ключе: остаток, лимит, и др."""
-    resp = requests.get("https://openrouter.ai/api/v1/key",
-                        headers={"Authorization": f"Bearer {API_KEY}"})
-    resp.raise_for_status()
-    return resp.json()["data"]
+    """Получает информацию о ключе: остаток, лимит, и др. (только для OpenRouter)"""
+    if PROVIDER != "openrouter" or not OPENROUTER_API_KEY:
+        return {}
+    try:
+        resp = r.get("https://openrouter.ai/api/v1/key",
+                     headers={"Authorization": f"Bearer {OPENROUTER_API_KEY}"})
+        resp.raise_for_status()
+        return resp.json()["data"]
+    except Exception:
+        return {}
 
 def can_use_free_model():
+    """Проверяет возможность использования бесплатных моделей (только для OpenRouter)"""
+    if PROVIDER != "openrouter":
+        return True  # Для Yandex Cloud проверка не требуется
     info = get_key_info()
-    # info содержит: limit, limit_remaining, usage_daily и др. :contentReference[oaicite:5]{index=5}
+    # info содержит: limit, limit_remaining, usage_daily и др.
     # is_free_tier указывает, был ли ранее куплен минимум кредитов
     return info.get("is_free_tier", False)
 
@@ -245,19 +281,19 @@ def ask(prompt):
     raise RuntimeError("Не удалось найти модель с доступным лимитом")
 if __name__ == "__main__":
     # 1. Скачиваем, если нужно
-    # download_docs_if_needed()
+    download_docs_if_needed()
 
     # 2. Загружаем и чанкуем
-    # chunks = load_all_chunks()
-    # if not chunks:
-    #     raise RuntimeError("❌ Не удалось извлечь ни одного чанка.")
+    chunks = load_all_chunks()
+    if not chunks:
+        raise RuntimeError("❌ Не удалось извлечь ни одного чанка.")
 
     # 3. Инициализация модели и Qdrant
     model = SentenceTransformer("sentence-transformers/all-MiniLM-L6-v2")
     client = QdrantClient(host=QDRANT_HOST, port=QDRANT_PORT)
 
     # 4. Создаём коллекцию, если её нет
-    # ensure_collection_exists(client, model, chunks)
+    ensure_collection_exists(client, model, chunks)
 
     # 5. Пример запроса
     question = 'create l3vpn with on vrfs TEST1 with rd 1234:123 on router 1.1.1.1 and router 2.2.2.2. Give me 2 configs to this routers'
