@@ -2,6 +2,8 @@
 eltex_docs/
 norm_docs/
 supertel_docs/
+
+tgbot_pack/tests.py
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
