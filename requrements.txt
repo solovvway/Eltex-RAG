@@ -8,3 +8,4 @@ numpy>=1.21.0
 openai
 python-dotenv
 python-telegram-bot==20.6
+unstructured[pdf]==0.8.15
